@@ -6,4 +6,3 @@ pub trait Hasher {
 
     fn hash(value: &[u8]) -> Box<[u8]>;
 }
-

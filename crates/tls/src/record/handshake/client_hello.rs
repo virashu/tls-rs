@@ -80,7 +80,9 @@ impl RawDeser for ClientHelloExtensionContent {
             }
             18 => Self::SignedCertificateTimestamp,
             extension_types::EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
-            extension_types::COMPRESS_CERTIFICATE => Self::CertificateCompressionAlgorithms(CertificateCompressionAlgorithms::deser(data)?),
+            extension_types::COMPRESS_CERTIFICATE => Self::CertificateCompressionAlgorithms(
+                CertificateCompressionAlgorithms::deser(data)?,
+            ),
             extension_types::SESSION_TICKET => Self::SessionTicket(),
             extension_types::PRE_SHARED_KEY => {
                 Self::PreSharedKey(PreSharedKeyExtensionClientHello::deser(data)?)
