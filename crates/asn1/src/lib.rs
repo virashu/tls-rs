@@ -1,3 +1,9 @@
+pub mod pkcs1;
+pub mod pkcs8;
+pub mod x509;
+
+mod macros;
+
 use num_bigint::BigUint;
 
 #[allow(non_upper_case_globals)]
@@ -36,6 +42,12 @@ pub mod tag_classes {
 
 #[derive(Clone, Debug)]
 pub struct Integer(pub BigUint);
+
+#[derive(Clone, Debug)]
+pub struct BitString(pub Box<[u8]>);
+
+#[derive(Clone, Debug)]
+pub struct OctetString(pub Box<[u8]>);
 
 #[derive(Clone, Debug)]
 pub struct ObjectIdentifier(pub Box<[u32]>);
@@ -92,34 +104,6 @@ fn decode_object_identifier(raw: &[u8]) -> Box<[u32]> {
     }
 
     res.into_boxed_slice()
-}
-
-pub struct X509CertificateV3 {
-    pub version: u32,
-    pub serial_number: Integer,
-    pub signature_algorithm: ObjectIdentifier,
-}
-
-impl X509CertificateV3 {
-    pub fn from_data_element(value: &DataElement) -> Self {
-        if let DataElement::Sequence(seq_o) = value
-            && let DataElement::Sequence(seq_i) = &seq_o[0]
-            // Inner
-            && let DataElement::Other(seq_ver) = &seq_i[0]
-            && let DataElement::Integer(version) = &seq_ver[0]
-            && let DataElement::Integer(serial) = &seq_i[1]
-            && let DataElement::Sequence(seq_oid) = &seq_i[2]
-            && let DataElement::ObjectIdentifier(algo) = &seq_oid[0]
-        {
-            Self {
-                version: version.0.clone().try_into().unwrap(),
-                serial_number: serial.clone(),
-                signature_algorithm: algo.clone(),
-            }
-        } else {
-            unimplemented!()
-        }
-    }
 }
 
 pub struct Tag {
@@ -187,8 +171,8 @@ pub enum DataElement {
     EndOfContent,
     Boolean(bool),
     Integer(Integer),
-    BitString(Box<[u8]>),
-    OctetString(Box<[u8]>),
+    BitString(BitString),
+    OctetString(OctetString),
     Null,
     ObjectIdentifier(ObjectIdentifier),
     ObjectDescriptor,
@@ -218,9 +202,11 @@ impl DataElement {
                 &raw.take(len).collect::<Box<[u8]>>(),
             ))),
 
-            der_native_tags::BIT_STRING => Self::BitString(raw.take(len).collect()),
+            der_native_tags::BIT_STRING => Self::BitString(BitString(raw.take(len).collect())),
 
-            der_native_tags::OCTET_STRING => Self::OctetString(raw.take(len).collect()),
+            der_native_tags::OCTET_STRING => {
+                Self::OctetString(OctetString(raw.take(len).collect()))
+            }
 
             der_native_tags::NULL => Self::Null,
 

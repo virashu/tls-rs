@@ -1,8 +1,11 @@
 use anyhow::{Result, anyhow, bail};
 use asn1::{
-    DataElement, X509CertificateV3,
+    DataElement,
     object_identifiers::{rsassaPss, sha256WithRSAEncryption},
     parse_der,
+    pkcs1::RsaPrivateKey,
+    pkcs8::PrivateKeyInfo,
+    x509::{Certificate as X509Certificate, TbsCertificate as X509TbsCertificate},
 };
 use crypt::{
     elliptic::x25519,
@@ -36,6 +39,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{Read, Write},
+    marker::PhantomData,
     net::{TcpListener, TcpStream},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -46,35 +50,32 @@ mod organized_extensions;
 
 const VERSION: u16 = 0x0304;
 
-fn load_cert() -> X509CertificateV3 {
-    let certificate = fs::read("cert.cer").unwrap();
-    let data = parse_der(&certificate);
-    X509CertificateV3::from_data_element(&data)
+fn load_cert() -> X509TbsCertificate {
+    let encoded = fs::read("cert.cer").unwrap();
+    let data = parse_der(&encoded);
+    X509Certificate::from_data_element(&data)
+        .unwrap()
+        .tbs_certificate
 }
 
 fn load_rsa_keys() -> (PrivateKey, PublicKey) {
     let encoded = std::fs::read("key.der").unwrap();
+    let data = parse_der(&encoded);
+    let private_key_info = PrivateKeyInfo::from_data_element(&data).unwrap();
 
-    if let DataElement::Sequence(seq) = parse_der(&encoded)
-        && let DataElement::OctetString(octets) = &seq[2]
-        && let DataElement::Sequence(numbers) = parse_der(octets)
-        && let DataElement::Integer(modulus) = &numbers[1]
-        && let DataElement::Integer(public_exponent) = &numbers[2]
-        && let DataElement::Integer(private_exponent) = &numbers[3]
-    {
-        (
-            PrivateKey {
-                modulus: modulus.0.clone(),
-                exponent: private_exponent.0.clone(),
-            },
-            PublicKey {
-                modulus: modulus.0.clone(),
-                exponent: public_exponent.0.clone(),
-            },
-        )
-    } else {
-        panic!()
-    }
+    let key_data = parse_der(&private_key_info.private_key.0);
+    let rsa_private_key = RsaPrivateKey::from_data_element(&key_data).unwrap();
+
+    (
+        PrivateKey {
+            modulus: rsa_private_key.modulus.0.clone(),
+            exponent: rsa_private_key.private_exponent.0.clone(),
+        },
+        PublicKey {
+            modulus: rsa_private_key.modulus.0.clone(),
+            exponent: rsa_private_key.public_exponent.0.clone(),
+        },
+    )
 }
 
 fn xor<const N: usize>(mut a: [u8; N], b: [u8; N]) -> [u8; N] {
@@ -96,28 +97,78 @@ struct ClientHelloInfo {
     server_share: Option<KeyShareEntry>,
 }
 
-struct TlsContext {
-    key_ecdhe: Option<Box<[u8]>>,
-    key_psk: Option<Box<[u8]>>,
-
+struct TlsSecureContext<H: Hasher> {
     seq_nonce: AtomicU64,
+
+    transcript: Vec<u8>,
+
+    server_handshake_traffic: [u8; 48],
+    server_handshake_key: [u8; 32],
+    server_handshake_iv: [u8; 12],
+
+    client_handshake_key: [u8; 32],
+    client_handshake_iv: [u8; 12],
+
+    _hash: PhantomData<H>,
 }
 
-impl TlsContext {
-    pub fn new(key_ecdhe: Option<Box<[u8]>>, key_psk: Option<Box<[u8]>>) -> Self {
-        Self {
-            key_ecdhe,
-            key_psk,
+impl<H: Hasher> TlsSecureContext<H> {
+    pub fn new(
+        key_ecdhe: Option<&[u8]>,
+        key_psk: Option<&[u8]>,
+        transcript: Vec<u8>,
+    ) -> Result<Self> {
+        // Key Schedule
+        let early_secret = hkdf_extract::<H>(&[0; 48], key_psk.unwrap_or(&[0; 48]));
+        let handshake_secret = hkdf_extract::<H>(
+            &derive_secret::<H>(&early_secret, "derived", &[]),
+            key_ecdhe.unwrap_or(&[0; 32]),
+        );
+
+        // Server keys
+        let server_handshake_traffic: [u8; 48] =
+            derive_secret::<H>(&handshake_secret, "s hs traffic", &transcript)
+                .as_ref()
+                .try_into()?;
+        let server_handshake_key: [u8; 32] =
+            hkdf_expand_label::<H>(&server_handshake_traffic, "key", &[], 32)
+                .as_ref()
+                .try_into()?;
+        let server_handshake_iv: [u8; 12] =
+            hkdf_expand_label::<H>(&server_handshake_traffic, "iv", &[], 12)
+                .as_ref()
+                .try_into()?;
+
+        // Client keys
+        let client_handshake_traffic_secret: [u8; 48] =
+            derive_secret::<H>(&handshake_secret, "c hs traffic", &transcript)
+                .as_ref()
+                .try_into()?;
+        let client_handshake_key: [u8; 32] =
+            hkdf_expand_label::<H>(&client_handshake_traffic_secret, "key", &[], 32)
+                .as_ref()
+                .try_into()?;
+        let client_handshake_iv: [u8; 12] =
+            hkdf_expand_label::<H>(&client_handshake_traffic_secret, "iv", &[], 12)
+                .as_ref()
+                .try_into()?;
+
+        // Main
+        let main_secret = hkdf_extract::<H>(
+            &derive_secret::<H>(&handshake_secret, "derived", &[]),
+            &[0; 48],
+        );
+
+        Ok(Self {
             seq_nonce: AtomicU64::new(0),
-        }
-    }
-
-    pub fn key_ecdhe(&self) -> &[u8] {
-        self.key_ecdhe.as_deref().unwrap_or(&[0; 32])
-    }
-
-    pub fn key_psk(&self) -> &[u8] {
-        self.key_psk.as_deref().unwrap_or(&[0; 48])
+            transcript,
+            server_handshake_traffic,
+            server_handshake_key,
+            server_handshake_iv,
+            client_handshake_key,
+            client_handshake_iv,
+            _hash: PhantomData,
+        })
     }
 
     pub fn nonce(&self) -> u64 {
@@ -128,6 +179,20 @@ impl TlsContext {
         let mut x = [0; L];
         x[(L - 8)..L].copy_from_slice(&self.nonce().to_be_bytes());
         x
+    }
+
+    pub fn extend_transcript(&mut self, value: &[u8]) {
+        self.transcript.extend(value);
+    }
+
+    pub fn transcript_hash(&self) -> Box<[u8]> {
+        H::hash(&self.transcript)
+    }
+
+    pub fn encrypt(&mut self, plaintext: &TlsPlaintext) -> Result<TlsCiphertext> {
+        self.transcript.extend(&plaintext.to_raw()[5..]);
+        let nonce = xor(self.pad_nonce(), self.server_handshake_iv);
+        TlsCiphertext::encrypt(plaintext, self.server_handshake_key, nonce)
     }
 }
 
@@ -203,74 +268,29 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     transcript.extend(&sh_raw[5..]);
     conn.write_all(&sh_raw)?;
 
-    // Key schedule
-
-    let context = TlsContext::new(x25519_shared.map(Box::from), None);
-
-    let early_secret = hkdf_extract::<Sha384>(&[0; 48], context.key_psk());
-
-    let handshake_secret = hkdf_extract::<Sha384>(
-        &derive_secret::<Sha384>(&early_secret, "derived", &[]),
-        context.key_ecdhe(),
-    );
-
-    // Server keys
-    let server_handshake_traffic_secret: [u8; 48] =
-        derive_secret::<Sha384>(&handshake_secret, "s hs traffic", &transcript)
-            .as_ref()
-            .try_into()?;
-    let server_write_key: [u8; 32] =
-        hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "key", &[], 32)
-            .as_ref()
-            .try_into()?;
-    let server_write_iv: [u8; 12] =
-        hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "iv", &[], 12)
-            .as_ref()
-            .try_into()?;
-
-    // Client keys
-    let client_handshake_traffic_secret: [u8; 48] =
-        derive_secret::<Sha384>(&handshake_secret, "c hs traffic", &transcript)
-            .as_ref()
-            .try_into()?;
-    let client_write_key: [u8; 32] =
-        hkdf_expand_label::<Sha384>(&client_handshake_traffic_secret, "key", &[], 32)
-            .as_ref()
-            .try_into()?;
-    let client_write_iv: [u8; 12] =
-        hkdf_expand_label::<Sha384>(&client_handshake_traffic_secret, "iv", &[], 12)
-            .as_ref()
-            .try_into()?;
-
-    let main_secret = hkdf_extract::<Sha384>(
-        &derive_secret::<Sha384>(&handshake_secret, "derived", &[]),
-        &[0; 48],
-    );
+    let mut context = TlsSecureContext::<Sha384>::new(
+        x25519_shared.as_ref().map(|x| x as &[u8]),
+        None,
+        transcript,
+    )?;
 
     // EncryptedExtensions
     {
-        let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&[])?);
-        let record = TlsPlaintext::new_handshake(ee)?;
-        transcript.extend(&record.to_raw()[5..]);
-        let nonce = xor(context.pad_nonce(), server_write_iv);
-        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        let ee_raw = encrypted.to_raw();
-        conn.write_all(&ee_raw)?;
+        let record = TlsPlaintext::new_handshake(Handshake::EncryptedExtensions(
+            EncryptedExtensions::new(&[])?,
+        ))?;
+        conn.write_all(&context.encrypt(&record)?.to_raw())?;
     }
 
     // Certificate
     {
         let certificate = fs::read("cert.cer")?;
 
-        let cert = Handshake::Certificate(Certificate::new(
+        let record = TlsPlaintext::new_handshake(Handshake::Certificate(Certificate::new(
             &[],
             &[CertificateEntry::new(&certificate)?],
-        )?);
-        let record = TlsPlaintext::new_handshake(cert)?;
-        transcript.extend(&record.to_raw()[5..]);
-        let nonce = xor(context.pad_nonce(), server_write_iv);
-        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        conn.write_all(&encrypted.to_raw())?;
+        )?))?;
+        conn.write_all(&context.encrypt(&record)?.to_raw())?;
     }
 
     // Determine certificate type
@@ -287,7 +307,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     // CertificateVerify
     {
-        let transcript_hash = Sha384::hash(&transcript);
+        let transcript_hash = context.transcript_hash();
         let sign_context = concat_dyn![
             [0x20].repeat(64),
             b"TLS 1.3, server CertificateVerify",
@@ -307,27 +327,20 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         )
         .unwrap();
 
-        let cv =
-            Handshake::CertificateVerify(CertificateVerify::new(signature_scheme, &signature)?);
-        let record = TlsPlaintext::new_handshake(cv)?;
-        transcript.extend(&record.to_raw()[5..]);
-        let nonce = xor(context.pad_nonce(), server_write_iv);
-        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        conn.write_all(&encrypted.to_raw())?;
+        let record = TlsPlaintext::new_handshake(Handshake::CertificateVerify(
+            CertificateVerify::new(signature_scheme, &signature)?,
+        ))?;
+        conn.write_all(&context.encrypt(&record)?.to_raw())?;
     }
 
     // Finished
     {
         let finished_key =
-            hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "finished", &[], 48);
-        let verify_data = hmac_hash::<Sha384>(&finished_key, &Sha384::hash(&transcript));
+            hkdf_expand_label::<Sha384>(&context.server_handshake_traffic, "finished", &[], 48);
+        let verify_data = hmac_hash::<Sha384>(&finished_key, &context.transcript_hash());
 
-        let finished = Handshake::Finished(Finished { verify_data });
-        let record = TlsPlaintext::new_handshake(finished)?;
-        transcript.extend(&record.to_raw()[5..]);
-        let nonce = xor(context.pad_nonce(), server_write_iv);
-        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        conn.write_all(&encrypted.to_raw())?;
+        let record = TlsPlaintext::new_handshake(Handshake::Finished(Finished { verify_data }))?;
+        conn.write_all(&context.encrypt(&record)?.to_raw())?;
     }
 
     Ok(())
