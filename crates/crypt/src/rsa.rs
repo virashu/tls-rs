@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Result, ensure};
 use num_bigint::BigUint;
 use utils::concat_dyn;
 
@@ -26,6 +26,7 @@ pub struct PrivateKey {
 /// <https://datatracker.ietf.org/doc/html/rfc8017#section-4.1>
 fn int_to_octets(value: &BigUint, len: usize) -> Box<[u8]> {
     let octets = value.to_bytes_be();
+    assert!(len >= octets.len());
     let mut v = vec![0; len - octets.len()];
     v.extend(octets);
     v.into_boxed_slice()
@@ -37,19 +38,29 @@ fn octets_to_int(bytes: &[u8]) -> BigUint {
     BigUint::from_bytes_be(bytes)
 }
 
-/// (key, message) -> signature
+/// <https://datatracker.ietf.org/doc/html/rfc8017#section-5.1.1>
+fn rsa_ep(key: &PublicKey, msg_repr: &BigUint) -> BigUint {
+    msg_repr.modpow(&key.exponent, &key.modulus)
+}
+
+/// <https://datatracker.ietf.org/doc/html/rfc8017#section-5.1.2>
+fn rsa_dp(key: &PrivateKey, msg_repr: &BigUint) -> BigUint {
+    msg_repr.modpow(&key.exponent, &key.modulus)
+}
+
 /// <https://datatracker.ietf.org/doc/html/rfc8017#section-5.2.1>
 fn rsa_sp1(key: &PrivateKey, msg_repr: &BigUint) -> BigUint {
     msg_repr.modpow(&key.exponent, &key.modulus)
 }
 
-/// (key, signature) -> message
 /// <https://datatracker.ietf.org/doc/html/rfc8017#section-5.2.2>
 fn rsa_vp1(key: &PublicKey, sgn_repr: &BigUint) -> BigUint {
+    assert!(*sgn_repr < key.modulus);
     sgn_repr.modpow(&key.exponent, &key.modulus)
 }
 
 /// MGF1
+/// <https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1>
 fn generate_mask<H: Hasher>(seed: &[u8], len: usize) -> Box<[u8]> {
     let mut t = Vec::new();
 
@@ -67,8 +78,8 @@ fn generate_mask<H: Hasher>(seed: &[u8], len: usize) -> Box<[u8]> {
     t.into_iter().take(len).collect()
 }
 
-fn emsa_pss_encode_fixed<H: Hasher>(salt: &[u8], message: &[u8], bits: usize) -> Box<[u8]> {
-    let em_len = bits.div_ceil(8);
+fn emsa_pss_encode_fixed<H: Hasher>(salt: &[u8], message: &[u8], em_bits: usize) -> Box<[u8]> {
+    let em_len = em_bits.div_ceil(8);
     let h_len = H::DIGEST_SIZE;
 
     let msg_hash = H::hash(message); // mHash
@@ -92,41 +103,39 @@ fn emsa_pss_verify<H: Hasher>(
     salt_len: usize,
     message: &[u8],
     encoded_message: &[u8],
-    bits: usize,
+    em_bits: usize,
 ) -> Result<()> {
-    let em_len = bits.div_ceil(8);
+    let em_len = em_bits.div_ceil(8);
     let h_len = H::DIGEST_SIZE;
 
     let msg_hash = H::hash(message); // mHash
 
-    if em_len < h_len + salt_len + 2 {
-        bail!("Length");
-    }
+    ensure!(em_len >= h_len + salt_len + 2, "Length is too small");
 
-    if *encoded_message.last().unwrap() != 0xBC {
-        bail!("Last byte is not 0xBC");
-    }
+    #[allow(clippy::unwrap_used, reason = "checked")]
+    let (last_byte, encoded_message) = encoded_message.split_last().unwrap();
 
-    let (masked_db, msg_derived_hash) =
-        encoded_message[..encoded_message.len() - 1].split_at(em_len - h_len - 1);
+    ensure!(*last_byte == 0xBC, "Invalid last byte");
+
+    let (masked_db, msg_derived_hash) = encoded_message.split_at(em_len - h_len - 1);
 
     let db_mask = generate_mask::<H>(msg_derived_hash, em_len - h_len - 1);
-    let db = xor_dyn(masked_db, &db_mask); // D
+    let db = xor_dyn(masked_db, &db_mask);
 
-    if db[..(em_len - salt_len - h_len - 2)]
-        .iter()
-        .any(|x| *x != 0)
-    {
-        bail!("Not zeroes");
-    }
+    let padding = &db[..(em_len - salt_len - h_len - 2)];
+    ensure!(padding.iter().all(|x| *x == 0), "Wrong padding");
+
+    let first_byte = db[db.len() - salt_len - 1];
+    ensure!(first_byte == 0x01, "Invalid first byte");
 
     let salt = &db[(db.len() - salt_len)..];
     let msg_derived = concat_dyn![[0u8; 8], &msg_hash, salt];
     let msg_derived_hash_derived = H::hash(&msg_derived);
 
-    if *msg_derived_hash != *msg_derived_hash_derived {
-        bail!("Hash is not equal");
-    }
+    ensure!(
+        *msg_derived_hash == *msg_derived_hash_derived,
+        "Hash mismatch"
+    );
 
     Ok(())
 }
@@ -242,7 +251,7 @@ mod tests {
              42d7f240e6f7aa0edb38bf81aa929d66bb5d890018088458720d72d569247b0c"
         );
 
-        let signature = rsassa_pss_sign::<Sha256, 0>(
+        let signature = rsassa_pss_sign::<Sha256, 32>(
             &PrivateKey {
                 modulus: modulus.clone(),
                 exponent: private_exponent,
@@ -250,7 +259,7 @@ mod tests {
             &message,
         );
         assert!(
-            rsassa_pss_verify::<Sha256, 0>(
+            rsassa_pss_verify::<Sha256, 32>(
                 &PublicKey {
                     modulus: modulus.clone(),
                     exponent: public_exponent.clone(),
@@ -261,7 +270,7 @@ mod tests {
             .is_ok()
         );
         assert!(
-            rsassa_pss_verify::<Sha256, 0>(
+            rsassa_pss_verify::<Sha256, 32>(
                 &PublicKey {
                     modulus,
                     exponent: public_exponent,

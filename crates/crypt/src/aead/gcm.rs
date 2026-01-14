@@ -1,6 +1,6 @@
 //! <https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf>
 
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Result, ensure};
 
 use crate::block_cipher::BlockCipher;
 
@@ -170,9 +170,7 @@ pub fn decrypt(
     let tag_block = ghash_tag(&hash_key, additional_data, ciphertext)?;
     let tag_check = gctr(block_cipher, counter_initial, &tag_block)?;
 
-    if *tag != *tag_check {
-        return Err(anyhow!("Tag does not match"));
-    }
+    ensure!(*tag == *tag_check, "Tag does not match");
 
     Ok(plaintext)
 }
