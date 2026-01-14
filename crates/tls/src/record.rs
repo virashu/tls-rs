@@ -6,12 +6,13 @@ pub mod handshake;
 use alert::Alert;
 use handshake::Handshake;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use utils::concat_dyn;
 
 use crate::{
     LEGACY_VERSION_BYTES,
     parse::{RawDeser, RawSer},
+    record::application_data::ApplicationData,
 };
 
 pub mod content_types {
@@ -28,7 +29,7 @@ pub enum TlsContent {
     ChangeCipherSpec,
     Alert(Alert),
     Handshake(Handshake),
-    ApplicationData,
+    ApplicationData(ApplicationData),
 }
 
 impl TlsContent {
@@ -38,7 +39,7 @@ impl TlsContent {
             TlsContent::ChangeCipherSpec => content_types::CHANGE_CIPHER_SPEC,
             TlsContent::Alert(_) => content_types::ALERT,
             TlsContent::Handshake(_) => content_types::HANDSHAKE,
-            TlsContent::ApplicationData => content_types::APPLICATION_DATA,
+            TlsContent::ApplicationData(_) => content_types::APPLICATION_DATA,
         }
     }
 }
@@ -50,7 +51,7 @@ impl RawSer for TlsContent {
             TlsContent::ChangeCipherSpec => todo!(),
             TlsContent::Alert(alert) => alert.ser(),
             TlsContent::Handshake(handshake) => handshake.ser(),
-            TlsContent::ApplicationData => todo!(),
+            TlsContent::ApplicationData(_) => todo!(),
         }
     }
 }
@@ -86,9 +87,11 @@ impl TlsPlaintext {
             content_types::CHANGE_CIPHER_SPEC => TlsContent::ChangeCipherSpec,
             content_types::ALERT => TlsContent::Alert(Alert::deser(data)?),
             content_types::HANDSHAKE => TlsContent::Handshake(Handshake::deser(data)?),
-            content_types::APPLICATION_DATA => TlsContent::ApplicationData,
+            content_types::APPLICATION_DATA => {
+                TlsContent::ApplicationData(ApplicationData::deser(data)?)
+            }
 
-            _ => todo!(),
+            _ => unimplemented!("{}", content_type),
         };
 
         Ok(Self {
@@ -186,11 +189,16 @@ impl TlsCiphertext {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         Self::deser(raw)
     }
+
+    pub fn from_encrypted(value: TlsPlaintext) -> Result<Self> {
+        Self::deser(&value.to_raw())
+    }
 }
 
 impl RawDeser for TlsCiphertext {
     fn deser(raw: &[u8]) -> Result<Self> {
-        // let opaque_type = raw[0];
+        let opaque_type = raw[0];
+        ensure!(opaque_type == content_types::APPLICATION_DATA);
         // let legacy_record_version = u16::from_be_bytes([raw[1], raw[2]]);
 
         let length = u16::from_be_bytes([raw[3], raw[4]]);

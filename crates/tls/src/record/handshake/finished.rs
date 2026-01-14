@@ -13,6 +13,8 @@ impl RawSer for Finished {
 
 impl RawDeser for Finished {
     fn deser(raw: &[u8]) -> anyhow::Result<Self> {
-        todo!()
+        Ok(Self {
+            verify_data: Box::from(raw),
+        })
     }
 }

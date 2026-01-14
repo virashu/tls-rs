@@ -6,11 +6,14 @@ use super::extension::{
 };
 use crate::{
     cipher_suite::CipherSuite,
-    parse::{RawDeser, RawSer, RawSize},
+    parse::{DataVec16, RawDeser, RawSer, RawSize},
+    record::handshake::extension::{ProtocolName, ProtocolNameList},
 };
 
 #[derive(Clone, Debug)]
 pub enum ServerHelloExtensionContent {
+    /// ID: 16
+    ApplicationLevelProtocolNegotiation(ProtocolNameList),
     /// ID: 23
     ExtendedMainSecret,
     /// ID: 41
@@ -63,6 +66,16 @@ impl ServerHelloExtension {
         })
     }
 
+    pub fn new_alpn(protocol: &[u8]) -> Result<Self> {
+        let ext = ProtocolNameList {
+            protocol_name_list: DataVec16::try_from(&[ProtocolName::new(protocol)?][..])?,
+        };
+        Ok(Self {
+            length: ext.ser().len() as u16,
+            content: ServerHelloExtensionContent::ApplicationLevelProtocolNegotiation(ext),
+        })
+    }
+
     pub fn length(&self) -> u16 {
         self.length
     }
@@ -102,6 +115,15 @@ impl RawSer for ServerHelloExtension {
                 res.extend(extension_types::KEY_SHARE.to_be_bytes());
                 res.extend(self.length.to_be_bytes());
                 res.extend(e.server_share.ser());
+
+                res.into_boxed_slice()
+            }
+            ServerHelloExtensionContent::ApplicationLevelProtocolNegotiation(e) => {
+                let mut res = Vec::new();
+
+                res.extend(extension_types::APPLICATION_LAYER_PROTOCOL_NEGOTIATION.to_be_bytes());
+                res.extend(self.length.to_be_bytes());
+                res.extend(e.protocol_name_list.ser());
 
                 res.into_boxed_slice()
             }
