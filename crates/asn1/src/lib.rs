@@ -6,13 +6,18 @@ mod macros;
 
 use num_bigint::BigUint;
 
-#[allow(non_upper_case_globals)]
 pub mod object_identifiers {
-    pub const pkcs_1: &[u32] = &[1, 2, 840, 113_549, 1, 1];
+    pub const PKCS_1: &[u32] = &[1, 2, 840, 113_549, 1, 1];
 
-    pub const rsaEncryption: &[u32] = &[1, 2, 840, 113_549, 1, 1, 1];
-    pub const rsassaPss: &[u32] = &[1, 2, 840, 113_549, 1, 1, 10];
-    pub const sha256WithRSAEncryption: &[u32] = &[1, 2, 840, 113_549, 1, 1, 11];
+    pub const RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 1];
+
+    pub const RSASSA_PSS: &[u32] = &[1, 2, 840, 113_549, 1, 1, 10];
+
+    pub const MD2_WITH_RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 2];
+    pub const MD5_WITH_RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 4];
+    pub const SHA256_WITH_RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 11];
+    pub const SHA384_WITH_RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 12];
+    pub const SHA512_WITH_RSA_ENCRYPTION: &[u32] = &[1, 2, 840, 113_549, 1, 1, 13];
 }
 
 pub mod der_native_tags {
@@ -50,7 +55,7 @@ pub struct BitString(pub Box<[u8]>);
 pub struct OctetString(pub Box<[u8]>);
 
 #[derive(Clone, Debug)]
-pub struct ObjectIdentifier(pub Box<[u32]>);
+pub struct ObjectIdentifier(pub Vec<u32>);
 
 impl ObjectIdentifier {
     pub fn is(&self, id: &[u32]) -> bool {
@@ -242,7 +247,7 @@ impl DataElement {
             der_native_tags::OBJECT_IDENTIFIER => {
                 let bytes = raw.take(len).collect::<Box<[u8]>>();
 
-                Self::ObjectIdentifier(ObjectIdentifier(decode_object_identifier(&bytes)))
+                Self::ObjectIdentifier(ObjectIdentifier(decode_object_identifier(&bytes).to_vec()))
             }
 
             der_native_tags::IA5_STRING => {

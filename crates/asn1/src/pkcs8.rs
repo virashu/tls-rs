@@ -10,7 +10,6 @@ pub struct PrivateKeyInfo {
 
 impl PrivateKeyInfo {
     pub fn from_data_element(value: &DataElement) -> Result<Self> {
-        dbg!(value);
         let main_seq = try_extract!(DataElement::Sequence, value)?;
 
         let version = try_extract!(DataElement::Integer, &main_seq[0])?.clone();
