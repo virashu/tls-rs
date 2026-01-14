@@ -305,6 +305,7 @@ dependencies = [
  "anyhow",
  "asn1",
  "crypt",
+ "hex-literal",
  "num-bigint",
  "rand",
  "tls",
