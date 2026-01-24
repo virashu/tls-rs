@@ -30,5 +30,8 @@ tracing = "0.1.41"
 [workspace.lints.clippy]
 print_stdout = "warn"
 unwrap_used = "warn"
-missing_errors_docs = "allow"
+
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
 new_without_default = "allow"

@@ -33,7 +33,7 @@ pub mod der_native_tags {
     pub const UTC_TIME: u32 = 0x17;
     pub const UTF8_STRING: u32 = 0x0C;
 
-    // Concstructed -- |00|1|xxxxx|
+    // Constructed -- |00|1|xxxxx|
     pub const SEQUENCE: u32 = 0x10;
     pub const SET: u32 = 0x11;
 }
@@ -195,7 +195,12 @@ pub enum DataElement {
 }
 
 impl DataElement {
-    pub fn parse_der(raw: &mut dyn Iterator<Item = u8>) -> Self {
+    pub fn parse(raw: &[u8]) -> Self {
+        let mut iter = raw.iter().copied();
+        DataElement::parse_iter(&mut iter)
+    }
+
+    pub fn parse_iter(raw: &mut dyn Iterator<Item = u8>) -> Self {
         let tag = Tag::parse(raw);
 
         let Length::Definite(len) = Length::parse(raw) else {
@@ -220,7 +225,7 @@ impl DataElement {
                 let mut elements = Vec::new();
 
                 while sub.peek().is_some() {
-                    elements.push(Self::parse_der(&mut sub));
+                    elements.push(Self::parse_iter(&mut sub));
                 }
 
                 Self::Sequence(elements.into_boxed_slice())
@@ -231,7 +236,7 @@ impl DataElement {
                 let mut elements = Vec::new();
 
                 while sub.peek().is_some() {
-                    elements.push(Self::parse_der(&mut sub));
+                    elements.push(Self::parse_iter(&mut sub));
                 }
 
                 Self::Set(elements.into_boxed_slice())
@@ -283,7 +288,7 @@ impl DataElement {
                     let mut elements = Vec::new();
 
                     while sub.peek().is_some() {
-                        elements.push(Self::parse_der(&mut sub));
+                        elements.push(Self::parse_iter(&mut sub));
                     }
 
                     Self::Other(elements.into_boxed_slice())
@@ -293,9 +298,4 @@ impl DataElement {
             }
         }
     }
-}
-
-pub fn parse_der(raw: &[u8]) -> DataElement {
-    let mut iter = raw.iter().copied();
-    DataElement::parse_der(&mut iter)
 }

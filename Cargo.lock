@@ -398,8 +398,10 @@ name = "tls"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "asn1",
  "crypt",
  "hex-literal",
+ "rand",
  "strum",
  "strum_macros",
  "thiserror",
