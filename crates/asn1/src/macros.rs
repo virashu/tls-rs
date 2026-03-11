@@ -3,7 +3,11 @@ macro_rules! try_extract {
         if let $variant(_temp) = $from {
             Ok(_temp)
         } else {
-            Err(::anyhow::anyhow!("Failed to extract"))
+            Err(::anyhow::anyhow!(
+                "Failed to extract {} from {}",
+                stringify!($variant),
+                stringify!($from),
+            ))
         }
     }};
 }
