@@ -1,10 +1,10 @@
+use std::net::TcpListener;
+
 use anyhow::Result;
 use tls::server::{
     connection::handle_connection,
     server::{Config, load_cert, load_rsa_keys},
 };
-
-use std::net::TcpListener;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()

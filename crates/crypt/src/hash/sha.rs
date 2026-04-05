@@ -64,9 +64,8 @@ fn sigma_512_1(x: u64) -> u64 {
 /// <https://di-mgt.com.au/sha_testvectors.html>
 #[cfg(test)]
 mod tests {
-    use crate::hash::Hasher;
-
     use super::*;
+    use crate::hash::Hasher;
 
     #[test]
     fn test_sha1() {

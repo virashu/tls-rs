@@ -1,10 +1,13 @@
-use crate::hash::Hasher;
-
 use super::{
-    cap_sigma_256_0, cap_sigma_256_1, ch_32,
+    cap_sigma_256_0,
+    cap_sigma_256_1,
+    ch_32,
     constants::{INITIAL_SHA256, K_32},
-    maj_32, sigma_256_0, sigma_256_1,
+    maj_32,
+    sigma_256_0,
+    sigma_256_1,
 };
+use crate::hash::Hasher;
 
 pub struct Sha256 {}
 impl Hasher for Sha256 {

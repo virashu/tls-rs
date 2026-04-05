@@ -1,10 +1,13 @@
-use crate::hash::Hasher;
-
 use super::{
-    cap_sigma_512_0, cap_sigma_512_1, ch_64,
+    cap_sigma_512_0,
+    cap_sigma_512_1,
+    ch_64,
     constants::{INITIAL_SHA384, K_64},
-    maj_64, sigma_512_0, sigma_512_1,
+    maj_64,
+    sigma_512_0,
+    sigma_512_1,
 };
+use crate::hash::Hasher;
 
 pub struct Sha384 {}
 impl Hasher for Sha384 {

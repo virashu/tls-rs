@@ -1,9 +1,10 @@
-mod scalar;
 use std::mem;
 
-use scalar::Field25519;
-
 use bnum::BUintD8;
+
+mod scalar;
+
+use self::scalar::Field25519;
 
 type ScalarInner = BUintD8<32>;
 

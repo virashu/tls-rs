@@ -7,11 +7,10 @@ type ScalarInner = BUintD8<32>;
 pub struct Field25519(ScalarInner);
 
 impl Field25519 {
+    const DELTA: ScalarInner = ScalarInner::ZERO.overflowing_sub(Self::PRIME).0;
     const PRIME: ScalarInner = ScalarInner::from_digit(2u8)
         .pow(255)
         .saturating_sub(ScalarInner::from_digit(19u8));
-
-    const DELTA: ScalarInner = ScalarInner::ZERO.overflowing_sub(Self::PRIME).0;
 
     pub fn from_bytes(value: [u8; 32]) -> Self {
         Self(ScalarInner::from_digits(value) % Self::PRIME)

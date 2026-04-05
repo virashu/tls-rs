@@ -16,11 +16,14 @@ mod supported_groups;
 mod supported_versions;
 
 pub use certificate_compression_algorithms::{
-    CertificateCompressionAlgorithm, CertificateCompressionAlgorithms,
+    CertificateCompressionAlgorithm,
+    CertificateCompressionAlgorithms,
 };
 pub use certificate_type::{
-    ClientCertTypeExtensionClientHello, ClientCertTypeExtensionServerHello,
-    ServerCertTypeExtensionClientHello, ServerCertTypeExtensionServerHello,
+    ClientCertTypeExtensionClientHello,
+    ClientCertTypeExtensionServerHello,
+    ServerCertTypeExtensionClientHello,
+    ServerCertTypeExtensionServerHello,
 };
 pub use constants::extension_types;
 pub use ec_point_formats::EcPointFormats;

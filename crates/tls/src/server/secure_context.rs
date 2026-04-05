@@ -1,14 +1,14 @@
-use crate::protocol::{
-    hkdf::{hkdf_expand_label, hkdf_extract},
-    record::{TlsCiphertext, TlsPlaintext},
+use std::{
+    marker::PhantomData,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use anyhow::Result;
 use crypt::hash::Hasher;
 
-use std::{
-    marker::PhantomData,
-    sync::atomic::{AtomicU64, Ordering},
+use crate::protocol::{
+    hkdf::{hkdf_expand_label, hkdf_extract},
+    record::{TlsCiphertext, TlsPlaintext},
 };
 
 const H_LENGTH: usize = 48; // Sha384

@@ -1,8 +1,14 @@
 use crate::protocol::record::handshake::{
     client_hello::{ClientHelloExtension, ClientHelloExtensionContent},
     extension::{
-        KeyShareClientHello, PreSharedKeyExtensionClientHello, PskKeyExchangeModes, ServerNameList,
-        SignatureAlgorithms, StatusRequest, SupportedGroups, SupportedVersionsClientHello,
+        KeyShareClientHello,
+        PreSharedKeyExtensionClientHello,
+        PskKeyExchangeModes,
+        ServerNameList,
+        SignatureAlgorithms,
+        StatusRequest,
+        SupportedGroups,
+        SupportedVersionsClientHello,
     },
 };
 

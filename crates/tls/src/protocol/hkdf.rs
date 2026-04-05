@@ -1,6 +1,5 @@
 use anyhow::Result;
 use crypt::hash::Hasher;
-
 pub use crypt::hkdf::{hkdf_expand, hkdf_extract};
 
 pub fn hkdf_expand_label<H: Hasher, const L: usize>(

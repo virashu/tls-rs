@@ -4,9 +4,8 @@ pub mod change_cipher_spec;
 pub mod handshake;
 
 use alert::Alert;
-use handshake::Handshake;
-
 use anyhow::{Result, anyhow, ensure};
+use handshake::Handshake;
 use utils::concat_dyn;
 
 use crate::protocol::{

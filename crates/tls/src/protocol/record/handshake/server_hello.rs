@@ -1,8 +1,11 @@
 use anyhow::Result;
 
 use super::extension::{
-    KeyShareEntry, KeyShareServerHello, PreSharedKeyExtensionServerHello,
-    SupportedVersionsServerHello, extension_types,
+    KeyShareEntry,
+    KeyShareServerHello,
+    PreSharedKeyExtensionServerHello,
+    SupportedVersionsServerHello,
+    extension_types,
 };
 use crate::protocol::{
     cipher_suite::CipherSuite,

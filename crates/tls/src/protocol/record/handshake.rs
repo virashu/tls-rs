@@ -7,6 +7,7 @@ pub mod extension;
 pub mod finished;
 pub mod server_hello;
 
+use anyhow::Result;
 use certificate::Certificate;
 use certificate_request::CertificateRequest;
 use certificate_verify::CertificateVerify;
@@ -14,8 +15,6 @@ use client_hello::ClientHello;
 use encrypted_extensions::EncryptedExtensions;
 use finished::Finished;
 use server_hello::ServerHello;
-
-use anyhow::Result;
 
 use crate::protocol::parse::{RawDeser, RawSer};
 

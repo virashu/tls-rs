@@ -1,3 +1,5 @@
+use std::{fs, path::Path};
+
 use anyhow::Result;
 use asn1::{
     DataElement as Asn1DataElement,
@@ -6,8 +8,6 @@ use asn1::{
     x509::{Certificate as X509Certificate, TbsCertificate as X509TbsCertificate},
 };
 use crypt::rsa::{PrivateKey, PublicKey};
-
-use std::{fs, path::Path};
 
 pub fn load_cert(path: impl AsRef<Path>) -> Result<X509TbsCertificate> {
     let encoded = fs::read(path)?;

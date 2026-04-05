@@ -21,9 +21,8 @@ pub fn hmac_hash<H: Hasher>(key: &[u8], text: &[u8]) -> Box<[u8]> {
 /// <https://datatracker.ietf.org/doc/html/rfc4231>
 #[cfg(test)]
 mod tests {
-    use crate::hash::sha::{Sha256, Sha384};
-
     use super::*;
+    use crate::hash::sha::{Sha256, Sha384};
 
     #[test]
     fn test_hmac_sha256_1() {

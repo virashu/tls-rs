@@ -1,3 +1,10 @@
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    net::TcpStream,
+};
+
 use anyhow::{Result, anyhow, bail};
 use asn1::object_identifiers::{RSASSA_PSS, SHA256_WITH_RSA_ENCRYPTION};
 use crypt::{
@@ -17,7 +24,9 @@ use crate::{
         error::TlsAlert,
         hkdf::hkdf_expand_label,
         record::{
-            TlsCiphertext, TlsContent, TlsPlaintext,
+            TlsCiphertext,
+            TlsContent,
+            TlsPlaintext,
             handshake::{
                 Handshake,
                 certificate::{Certificate, CertificateEntry},
@@ -34,12 +43,6 @@ use crate::{
         secure_context::{TlsApplicationSecureContext, TlsHandshakeSecureContext, Transcript},
         server::Config,
     },
-};
-use std::{
-    collections::HashMap,
-    fs,
-    io::{Read, Write},
-    net::TcpStream,
 };
 
 struct ClientHelloInfo {

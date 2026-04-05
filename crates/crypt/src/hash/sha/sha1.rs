@@ -1,10 +1,10 @@
-use crate::hash::Hasher;
-
 use super::{
     ch_32,
     constants::{INITIAL_SHA1, K_SHA_1},
-    maj_32, parity_32,
+    maj_32,
+    parity_32,
 };
+use crate::hash::Hasher;
 
 pub struct Sha1 {}
 impl Hasher for Sha1 {

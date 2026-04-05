@@ -1,10 +1,19 @@
 use anyhow::{Context, Result, bail};
 
 use super::extension::{
-    CertificateCompressionAlgorithms, EcPointFormats, KeyShareClientHello,
-    PreSharedKeyExtensionClientHello, ProtocolNameList, PskKeyExchangeModes, RenegotiationInfo,
-    ServerNameList, SignatureAlgorithms, StatusRequest, SupportedGroups,
-    SupportedVersionsClientHello, extension_types,
+    CertificateCompressionAlgorithms,
+    EcPointFormats,
+    KeyShareClientHello,
+    PreSharedKeyExtensionClientHello,
+    ProtocolNameList,
+    PskKeyExchangeModes,
+    RenegotiationInfo,
+    ServerNameList,
+    SignatureAlgorithms,
+    StatusRequest,
+    SupportedGroups,
+    SupportedVersionsClientHello,
+    extension_types,
 };
 use crate::protocol::{
     cipher_suite::CipherSuite,

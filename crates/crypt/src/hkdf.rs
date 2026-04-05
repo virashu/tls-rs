@@ -33,10 +33,10 @@ pub fn hkdf_expand<H: Hasher, const L: usize>(prk: &[u8], info: &[u8]) -> [u8; L
 
 #[cfg(test)]
 mod tests {
-    use crate::hash::sha::Sha384;
     use hex_literal::hex;
 
     use super::*;
+    use crate::hash::sha::Sha384;
 
     #[test]
     fn test_hkdf_hmac_sha384_1() {

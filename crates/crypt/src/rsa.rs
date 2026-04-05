@@ -196,9 +196,8 @@ pub fn rsassa_pss_verify<H: Hasher, const SALT_LEN: usize>(
 mod tests {
     use hex_literal::hex;
 
-    use crate::hash::sha::Sha256;
-
     use super::*;
+    use crate::hash::sha::Sha256;
 
     #[test]
     fn test_sign_testcase_1() {
