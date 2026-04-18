@@ -178,12 +178,12 @@ pub fn handshake(
             transcript_hash,
         ];
         let signature = loop {
-            let signature = crypt::rsa::rsassa_pss_sign::<Sha256, { Sha256::DIGEST_SIZE }>(
+            let signature = crypt::pkcs1::rsassa_pss_sign::<Sha256, { Sha256::DIGEST_SIZE }>(
                 &config.private_key,
                 &sign_context,
             );
 
-            match crypt::rsa::rsassa_pss_verify::<Sha256, { Sha256::DIGEST_SIZE }>(
+            match crypt::pkcs1::rsassa_pss_verify::<Sha256, { Sha256::DIGEST_SIZE }>(
                 &config.public_key,
                 &sign_context,
                 &signature,

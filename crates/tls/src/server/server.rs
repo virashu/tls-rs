@@ -7,7 +7,7 @@ use asn1::{
     pkcs8::PrivateKeyInfo,
     x509::{Certificate as X509Certificate, TbsCertificate as X509TbsCertificate},
 };
-use crypt::rsa::{PrivateKey, PublicKey};
+use crypt::pkcs1::{PrivateKey, PublicKey};
 
 pub fn load_cert(path: impl AsRef<Path>) -> Result<X509TbsCertificate> {
     let encoded = fs::read(path)?;
