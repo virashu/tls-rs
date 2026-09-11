@@ -60,7 +60,7 @@ pub fn emsa_pss_verify<H: Hasher>(
 
     ensure!(
         *last_byte == 0xbc,
-        "Invalid last byte (expected: 0xBC, got: {last_byte:02X})"
+        "Invalid last byte (expected: 0xBC, got: 0x{last_byte:02X})"
     );
 
     let (masked_db, msg_derived_hash) = encoded_message.split_at(db_len);
